@@ -46,9 +46,13 @@ impl Evaluatable for CubicSplineInterpolation {
 
 
 pub fn cubic_spline_interpolation(
-    mut xs: Vec<f64>,
+    xs: Vec<f64>,
     ys: Vec<f64>
 ) -> CubicSplineInterpolation {
+    let mut joined: Vec<(f64, f64)> = xs.into_iter().zip(ys).collect();
+    joined.sort_by(|joined0, joined1| cmp_f64(&joined0.0, &joined1.0));
+    let (xs, ys): (Vec<f64>, Vec<f64>) = joined.into_iter().unzip();
+
     let a_i = ys;
     let mut h_i = Vec::new();
     for i in 0..(xs.len()-1) {
@@ -81,7 +85,6 @@ pub fn cubic_spline_interpolation(
         );
     }
     let mut x_ranges = Vec::new();
-    xs.sort_by(cmp_f64);
     for i in 1..xs.len() {
         x_ranges.push((xs[i-1], xs[i]));
     }
@@ -116,5 +119,32 @@ mod tests {
         assert_eq!(c.eval(0.0).unwrap(), 0.0);
         assert_eq!(c.eval(1.0).unwrap(), 1.0);
         assert_eq!(c.eval(0.5).unwrap(), 0.5);
+    }
+
+    #[test]
+    fn test_cubic_spline_interpolation_three_points() {
+        let xs = vec![0.0, 1.0, 2.0];
+        let ys = vec![5.0, 0.0, 3.0];
+
+        let c = cubic_spline_interpolation(xs, ys);
+        assert_eq!(c.eval(0.0).unwrap(), 5.0);
+        assert_eq!(c.eval(1.0).unwrap(), 0.0);
+        assert_eq!(c.eval(2.0).unwrap(), 3.0);
+        assert_eq!(c.eval(0.5).unwrap(), 1.75);
+        assert_eq!((c.eval(1.8).unwrap() -  2.016).abs() < 1e-6, true);
+    }
+
+    #[test]
+    fn test_cubic_spline_interpolation_four_points() {
+        let xs = vec![0.0, 1.0, 2.0, 2.5];
+        let ys = vec![0.0, 1.0, 8.0, 9.0];
+
+        let c = cubic_spline_interpolation(xs, ys);
+        assert_eq!(c.eval(0.0).unwrap(), 0.0);
+        assert_eq!(c.eval(1.0).unwrap(), 1.0);
+        assert_eq!(c.eval(2.0).unwrap(), 8.0);
+        assert_eq!(c.eval(2.5).unwrap(), 9.0);
+        assert_eq!((c.eval(0.1).unwrap() - -0.107).abs() < 1e-6, true);
+        assert_eq!((c.eval(1.5).unwrap() - 4.60227).abs() < 1e-5, true);
     }
 }
