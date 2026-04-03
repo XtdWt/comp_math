@@ -29,7 +29,6 @@ impl Evaluatable for LagrangePolynomial {
 }
 
 
-
 pub fn barycentric_lagrange_interpolation(
     xs: Vec<f64>,
     ys: Vec<f64>,

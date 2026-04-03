@@ -1,5 +1,3 @@
-// use std::f64::NAN;
-
 use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
 
@@ -136,7 +134,6 @@ pub fn chebyshev_nodes_py(
 ) -> Vec<f64> {
     chebyshev_nodes(a, b, n)
 }
-
 
 
 #[pymethods]
