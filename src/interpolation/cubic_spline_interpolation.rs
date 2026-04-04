@@ -4,7 +4,9 @@ use crate::interpolation::util::cmp_f64;
 use crate::interpolation::util::{Evaluatable, Differentiable, Integrable};
 
 
-struct Polynomial {
+#[pyclass]
+#[derive(Clone)]
+pub struct Polynomial {
     weights: Vec<f64>,
     x_i: f64,
 }
@@ -30,7 +32,7 @@ impl Differentiable for Polynomial {
         for i in 1..self.weights.len() {
             diff_weights.push(self.weights[i] * i as f64);
         }
-        
+
         Polynomial{
             weights: diff_weights,
             x_i: self.x_i,
@@ -46,7 +48,7 @@ impl Integrable for Polynomial {
         for i in 0..self.weights.len() {
             int_weights.push(self.weights[i] / (i+1) as f64);
         }
-        
+
         let mut definite_integral = Polynomial{
             weights: int_weights,
             x_i: self.x_i,
@@ -60,8 +62,8 @@ impl Integrable for Polynomial {
 
 #[pyclass]
 pub struct CubicSplineInterpolation {
-    x_ranges: Vec<(f64, f64)>,
-    y_functions: Vec<Polynomial>,
+    pub x_ranges: Vec<(f64, f64)>,
+    pub y_functions: Vec<Polynomial>,
 }
 
 
@@ -82,24 +84,41 @@ impl Evaluatable for CubicSplineInterpolation {
 }
 
 
+impl Differentiable for CubicSplineInterpolation {
+    fn differentiate(&self) -> Self {
+        let mut diff_poly = Vec::new();
+        for polynomial in self.y_functions.iter() {
+            diff_poly.push(polynomial.differentiate())
+        }
+        CubicSplineInterpolation{
+            x_ranges: self.x_ranges.clone(),
+            y_functions: diff_poly,
+        }
+    }
+}
+
+
 pub fn cubic_spline_interpolation(
     xs: Vec<f64>,
     ys: Vec<f64>
 ) -> CubicSplineInterpolation {
-    let mut joined: Vec<(f64, f64)> = xs.into_iter().zip(ys).collect();
-    joined.sort_by(|joined0, joined1| cmp_f64(&joined0.0, &joined1.0));
-    let (xs, ys): (Vec<f64>, Vec<f64>) = joined.into_iter().unzip();
-
-    let a_i = ys;
+    let (xs_sorted, ys_sorted): (Vec<f64>, Vec<f64>) = if !xs.is_sorted() {
+        let mut joined: Vec<(f64, f64)> = xs.into_iter().zip(ys).collect();
+        joined.sort_by(|joined0, joined1| cmp_f64(&joined0.0, &joined1.0));
+        joined.into_iter().unzip()
+    } else {
+        (xs, ys)
+    };
+    let a_i = ys_sorted;
     let mut h_i = Vec::new();
-    for i in 0..(xs.len()-1) {
-        h_i.push(xs[i+1] - xs[i]);
+    for i in 0..(xs_sorted.len()-1) {
+        h_i.push(xs_sorted[i+1] - xs_sorted[i]);
     }
-    let mut A = DMatrix::zeros(xs.len(), xs.len());
-    let mut b = DMatrix::zeros(xs.len(), 1);
+    let mut A = DMatrix::zeros(xs_sorted.len(), xs_sorted.len());
+    let mut b = DMatrix::zeros(xs_sorted.len(), 1);
 
-    for i in 0..xs.len() {
-        if i == 0 || i == xs.len()-1 {
+    for i in 0..xs_sorted.len() {
+        if i == 0 || i == xs_sorted.len()-1 {
             A[(i, i)] = 1.0;
             b[(i, 0)] = 0.0;
 
@@ -113,7 +132,7 @@ pub fn cubic_spline_interpolation(
     let c_i: Vec<f64> = (A.try_inverse().unwrap() * b).column(0).iter().cloned().collect();
     let mut b_i = Vec::new();
     let mut d_i = Vec::new();
-    for i in 0..(xs.len()-1) {
+    for i in 0..(xs_sorted.len()-1) {
         b_i.push(
             (1.0/h_i[i])*(a_i[i+1] - a_i[i]) - ((h_i[i]/3.0)*(2.0*c_i[i] + c_i[i+1]))
         );
@@ -122,13 +141,13 @@ pub fn cubic_spline_interpolation(
         );
     }
     let mut x_ranges = Vec::new();
-    for i in 1..xs.len() {
-        x_ranges.push((xs[i-1], xs[i]));
+    for i in 1..xs_sorted.len() {
+        x_ranges.push((xs_sorted[i-1], xs_sorted[i]));
     }
     let mut y_functions = Vec::new();
-    for i in 0..(xs.len()-1) {
+    for i in 0..(xs_sorted.len()-1) {
         let weights = vec![a_i[i], b_i[i], c_i[i], d_i[i]];
-        let x_i = xs[i];
+        let x_i = xs_sorted[i];
         y_functions.push(
             Polynomial{
                 weights,
@@ -183,5 +202,78 @@ mod tests {
         assert_eq!(c.eval(2.5).unwrap(), 9.0);
         assert_eq!((c.eval(0.1).unwrap() - -0.107).abs() < 1e-6, true);
         assert_eq!((c.eval(1.5).unwrap() - 4.60227).abs() < 1e-5, true);
+    }
+
+    #[test]
+    fn test_cubic_spline_interpolation_sort_points() {
+        let xs = vec![0.0, 2.5, 1.0, 2.0];
+        let ys = vec![0.0, 9.0, 1.0, 8.0];
+
+        let c = cubic_spline_interpolation(xs, ys);
+        assert_eq!(c.eval(0.0).unwrap(), 0.0);
+        assert_eq!(c.eval(1.0).unwrap(), 1.0);
+        assert_eq!(c.eval(2.0).unwrap(), 8.0);
+        assert_eq!(c.eval(2.5).unwrap(), 9.0);
+        assert_eq!((c.eval(0.1).unwrap() - -0.107).abs() < 1e-6, true);
+        assert_eq!((c.eval(1.5).unwrap() - 4.60227).abs() < 1e-5, true);
+    }
+
+    #[test]
+    fn test_cubic_spline_interpolation_polynomial_differentiation() {
+        let p = Polynomial{
+            weights: vec![1.0, 2.0, 3.0],
+            x_i: 0.0
+        };
+        let p_diff = p.differentiate();
+        let derivative = |x: f64| 2.0 + 6.0*x;
+        for i in -3..3 {
+            assert_eq!(p_diff.eval(i as f64).unwrap(), derivative(i as f64));
+        }
+    }
+
+    #[test]
+    fn test_cubic_spline_interpolation_polynomial_integration() {
+        let p = Polynomial{
+            weights: vec![1.0, 2.0, 3.0],
+            x_i: 0.0
+        };
+        let p_integral = p.integrate(0.0, 1.0);
+        let integral = |x: f64| 1.0 + x + x*x + x*x*x;
+        for i in -3..3 {
+            assert_eq!(p_integral.eval(i as f64).unwrap(), integral(i as f64));
+        }
+    }
+
+    #[test]
+    fn test_cubic_spline_interpolation_spline_differentiation() {
+        let p = Polynomial{
+            weights: vec![1.0, 2.0, 3.0],
+            x_i: 0.0
+        };
+        let c = CubicSplineInterpolation{
+            x_ranges: vec![(-4.0, 4.0)],
+            y_functions: vec![p],
+        };
+        let c_integral = c.differentiate();
+        let derivative = |x: f64| 2.0 + 6.0*x;
+        for i in -3..3 {
+            assert_eq!(c_integral.eval(i as f64).unwrap(), derivative(i as f64));
+        }
+    }
+
+    #[test]
+    fn test_cubic_spline_interpolation_extrapolate() {
+        let p = Polynomial{
+            weights: vec![1.0, 2.0, 3.0],
+            x_i: 0.0
+        };
+        let c = CubicSplineInterpolation{
+            x_ranges: vec![(3.0, 4.0)],
+            y_functions: vec![p.clone()],
+        };
+
+        for i in -3..3 {
+            assert_eq!(c.eval(i as f64).unwrap(), p.eval(i as f64).unwrap());
+        }
     }
 }

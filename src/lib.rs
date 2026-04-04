@@ -8,7 +8,7 @@ use crate::root_finding::bisection_method::bisection_method;
 use crate::root_finding::newton_raphson_method::newton_raphson_method;
 
 mod interpolation;
-use crate::interpolation::util::Evaluatable;
+use crate::interpolation::util::{Differentiable, Evaluatable};
 use crate::interpolation::barycentric_lagrange_interpolation::{
     barycentric_lagrange_interpolation,
     LagrangePolynomial,
@@ -21,6 +21,7 @@ use crate::interpolation::chebyshev_nodes::chebyshev_nodes;
 use crate::interpolation::cubic_spline_interpolation::{
     cubic_spline_interpolation,
     CubicSplineInterpolation,
+    Polynomial,
 };
 
 
@@ -135,11 +136,23 @@ pub fn chebyshev_nodes_py(
     chebyshev_nodes(a, b, n)
 }
 
+#[pymethods]
+impl Polynomial {
+    fn __call__(&self, x: f64) -> f64 {
+        self.eval(x).unwrap_or_else(|| f64::NAN)
+    }
+}
+
 
 #[pymethods]
 impl CubicSplineInterpolation {
     fn __call__(&self, x: f64) -> f64 {
         self.eval(x).unwrap_or_else(|| f64::NAN)
+    }
+
+    #[pyo3(name = "differentiate")]
+    fn differentiate_py(&self) -> Self {
+        self.differentiate()
     }
 }
 
@@ -160,5 +173,11 @@ fn comp_math(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(newtons_divided_difference_interpolation_py, m)?)?;
     m.add_function(wrap_pyfunction!(chebyshev_nodes_py, m)?)?;
     m.add_function(wrap_pyfunction!(cubic_spline_interpolation_py, m)?)?;
+
+    m.add_class::<CubicSplineInterpolation>()?;
+    m.add_class::<Polynomial>()?;
+    m.add_class::<LagrangePolynomial>()?;
+    m.add_class::<NewtonsDividedDifferencePolynomial>()?;
+
     Ok(())
 }
