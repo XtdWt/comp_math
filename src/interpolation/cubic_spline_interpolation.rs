@@ -114,7 +114,9 @@ pub fn cubic_spline_interpolation(
     for i in 0..(xs_sorted.len()-1) {
         h_i.push(xs_sorted[i+1] - xs_sorted[i]);
     }
-    let mut A = DMatrix::zeros(xs_sorted.len(), xs_sorted.len());
+    #[allow(non_snake_case)] let mut A = DMatrix::zeros(
+        xs_sorted.len(), xs_sorted.len()
+    );
     let mut b = DMatrix::zeros(xs_sorted.len(), 1);
 
     for i in 0..xs_sorted.len() {
