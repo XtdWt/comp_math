@@ -9,6 +9,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 nalgebra = "0.33.3"
+num-complex = "0.4.6"
 
 [dependencies.pyo3]
 version = "0.27.0"
