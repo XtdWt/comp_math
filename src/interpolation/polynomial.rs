@@ -178,7 +178,7 @@ impl Integrable for PiecewisePolynomial {
         let mut integrated_functions = self.y_functions.clone();
         integrated_functions[i] = p.clone();
 
-        // integrate from 0 to i
+        // integrate from i-1 to 0
         let mut j = (i-1) as i32;
         let mut x_lower = self.x_ranges[i].0;
         let mut y_lower = p.eval(x_lower).unwrap();
@@ -189,7 +189,7 @@ impl Integrable for PiecewisePolynomial {
             integrated_functions[j as usize] = p_lower;
             j -= 1;
         }
-        // integrate from i to n
+        // integrate from i+1 to n
         let mut k = i+1;
         let mut x_upper = self.x_ranges[i].1;
         let mut y_upper = p.eval(x_upper).unwrap();
