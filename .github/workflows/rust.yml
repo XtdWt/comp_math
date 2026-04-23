@@ -24,13 +24,8 @@ jobs:
     - name: Install maturin
       run: pip install maturin
 
-    - name: Create venv
-      run: |
-        python -m venv venv
-        source venv/bin/activate
+    - name: Cargo test
+      run: cargo test --verbose
   
     - name: Maturin develop
       run: maturin develop --release
-
-    - name: Cargo test
-      run: cargo test --verbose
