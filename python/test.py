@@ -1,3 +1,4 @@
+import pytest
 from computational_mathematics import (
     barycentric_lagrange_interpolation,
     bisection_method,
